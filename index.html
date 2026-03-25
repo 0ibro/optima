@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mini Discord Chat с кликабельной регистрацией</title>
+    <style>
+        body {
+            margin:0;
+            font-family: Arial;
+            background:#36393f;
+            color:white;
+            display:flex;
+            height:100vh;
+        }
+
+        #sidebar {
+            width:200px;
+            background:#2f3136;
+            display:flex;
+            flex-direction:column;
+            padding:10px;
+        }
+
+        #sidebar h3 { margin:5px 0; font-size:16px; }
+        #roomSelect { flex:1; overflow-y:auto; background:#2f3136; color:white; border:none; border-radius:5px; }
+        #roomSelect option { padding:5px; }
+        #newRoom { margin-top:5px; padding:5px; border-radius:5px; border:none; }
+        #createRoomBtn { margin-top:5px; padding:5px; border-radius:5px; border:none; background:#7289da; color:white; cursor:pointer; }
+
+        #main { flex:1; display:flex; flex-direction:column; }
+        #messages { flex:1; padding:10px; overflow-y:auto; }
+        #inputContainer { display:flex; padding:10px; background:#2f3136; }
+        #input { flex:1; padding:10px; border-radius:5px; border:none; }
+        button { margin-left:5px; padding:10px; border-radius:5px; border:none; background:#7289da; color:white; cursor:pointer; }
+
+        .overlay {
+            position:absolute; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.85); display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+        }
+        .overlay input {
+            padding:10px; margin-bottom:10px; border-radius:5px; border:none; width:200px;
+        }
+        .overlay button {
+            padding:10px 20px; border:none; border-radius:5px; background:#7289da; color:white; cursor:pointer; margin:2px;
+        }
+
+        /* Кликабельный текст */
+        .clickable { color:#7289da; cursor:pointer; text-decoration:underline; }
+    </style>
+</head>
+<body>
+
+<!-- Экран входа -->
+<div id="loginOverlay" class="overlay">
+    <h2>Войти</h2>
+    <input id="loginUsername" placeholder="Ник">
+    <input id="loginPassword" type="password" placeholder="Пароль">
+    <button onclick="login()">Войти</button>
+    <p>Нет аккаунта? <span class="clickable" onclick="showRegister()">Зарегистрироваться</span></p>
+</div>
+
+<!-- Экран регистрации -->
+<div id="registerOverlay" class="overlay" style="display:none;">
+    <h2>Регистрация</h2>
+    <input id="registerUsername" placeholder="Ник">
+    <input id="registerPassword" type="password" placeholder="Пароль">
+    <button onclick="register()">Зарегистрироваться</button>
+    <p>Уже есть аккаунт? <span class="clickable" onclick="showLogin()">Войти</span></p>
+</div>
+
+<!-- Список комнат -->
+<div id="sidebar">
+    <h3>Комнаты</h3>
+    <select id="roomSelect" size="10" onchange="changeRoom()"></select>
+    <input id="newRoom" placeholder="Новая комната">
+    <button id="createRoomBtn" onclick="createRoom()">Создать</button>
+</div>
+
+<!-- Основной чат -->
+<div id="main">
+    <h3 id="roomName">Комната: </h3>
+    <div id="messages"></div>
+    <div id="inputContainer">
+        <input id="input" placeholder="Напишите сообщение...">
+        <button onclick="sendMessage()">Отправить</button>
+    </div>
+</div>
+
+<script>
+let username = "";
+let room = "";
+let channel;
+
+// Пользователи в localStorage
+function getUsers(){ return JSON.parse(localStorage.getItem("chat_users")||"{}"); }
+function saveUsers(users){ localStorage.setItem("chat_users",JSON.stringify(users)); }
+
+// Показать регистрацию
+function showRegister(){ document.getElementById("loginOverlay").style.display="none"; document.getElementById("registerOverlay").style.display="flex"; }
+// Показать логин
+function showLogin(){ document.getElementById("registerOverlay").style.display="none"; document.getElementById("loginOverlay").style.display="flex"; }
+
+// Регистрация
+function register(){
+    const name=document.getElementById("registerUsername").value.trim();
+    const pass=document.getElementById("registerPassword").value.trim();
+    if(!name||!pass) return alert("Введите ник и пароль!");
+    let users=getUsers();
+    if(users[name]) return alert("Ник уже занят!");
+    users[name]=pass;
+    saveUsers(users);
+    alert("Регистрация успешна! Теперь войдите.");
+    showLogin();
+}
+
+// Вход
+function login(){
+    const name=document.getElementById("loginUsername").value.trim();
+    const pass=document.getElementById("loginPassword").value.trim();
+    if(!name||!pass) return alert("Введите ник и пароль!");
+    let users=getUsers();
+    if(!users[name]||users[name]!==pass) return alert("Неверный ник или пароль!");
+    username=name;
+    document.getElementById("loginOverlay").style.display="none";
+    document.getElementById("registerOverlay").style.display="none";
+    addMessage(`💬 ${username} вошёл в чат`);
+}
+
+// Добавление сообщений
+function addMessage(msg){
+    const messages=document.getElementById("messages");
+    const div=document.createElement("div");
+    div.textContent=msg;
+    messages.appendChild(div);
+    messages.scrollTop=messages.scrollHeight;
+}
+
+// Создание комнаты
+function createRoom(){
+    if(!username) return alert("Сначала войдите!");
+    const newRoom=document.getElementById("newRoom").value.trim();
+    if(!newRoom) return;
+    const select=document.getElementById("roomSelect");
+    for(let i=0;i<select.options.length;i++){ if(select.options[i].value===newRoom) return alert("Комната уже существует!"); }
+    const option=document.createElement("option");
+    option.value=newRoom; option.textContent="#"+newRoom;
+    select.appendChild(option); select.value=newRoom;
+    document.getElementById("newRoom").value="";
+    openRoom(newRoom);
+}
+
+// Открытие комнаты
+function openRoom(newRoom){
+    room=newRoom;
+    if(channel) channel.close();
+    channel=new BroadcastChannel('chat_'+room);
+    channel.onmessage=(e)=>addMessage(e.data);
+    document.getElementById("messages").innerHTML="";
+    document.getElementById("roomName").textContent="Комната: #"+room;
+    addMessage(`💬 ${username} присоединился к комнате #${room}`);
+}
+
+// Смена комнаты
+function changeRoom(){
+    const selectedRoom=document.getElementById("roomSelect").value;
+    openRoom(selectedRoom);
+}
+
+// Отправка сообщений
+function sendMessage(){
+    const input=document.getElementById("input");
+    if(!room) return alert("Сначала выберите комнату!");
+    if(!input.value.trim()) return;
+    const msg=username+": "+input.value;
+    addMessage(msg);
+    channel.postMessage(msg);
+    input.value="";
+}
+
+document.getElementById("input").addEventListener("keypress",(e)=>{ if(e.key==="Enter") sendMessage(); });
+</script>
+
+</body>
+</html>
