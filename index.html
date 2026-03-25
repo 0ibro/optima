@@ -2,24 +2,23 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Mini Discord Chat</title>
+<title>Optima Chat</title>
 <style>
-body { margin:0; font-family:Arial; background:#36393f; color:white; display:flex; height:100vh; }
-#sidebar { width:200px; background:#2f3136; display:flex; flex-direction:column; padding:10px; }
-#sidebar h3 { margin:5px 0; font-size:16px; }
-#roomSelect { flex:1; overflow-y:auto; background:#2f3136; color:white; border:none; border-radius:5px; }
-#roomSelect option { padding:5px; }
-#newRoom { margin-top:5px; padding:5px; border-radius:5px; border:none; }
-#createRoomBtn { margin-top:5px; padding:5px; border-radius:5px; border:none; background:#7289da; color:white; cursor:pointer; }
-#main { flex:1; display:flex; flex-direction:column; }
-#messages { flex:1; padding:10px; overflow-y:auto; }
-#inputContainer { display:flex; padding:10px; background:#2f3136; }
-#input { flex:1; padding:10px; border-radius:5px; border:none; }
-button { margin-left:5px; padding:10px; border-radius:5px; border:none; background:#7289da; color:white; cursor:pointer; }
-.overlay { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.overlay input { padding:10px; margin-bottom:10px; border-radius:5px; border:none; width:200px; }
-.overlay button { padding:10px 20px; border:none; border-radius:5px; background:#7289da; color:white; cursor:pointer; margin:2px; }
-.clickable { color:#7289da; cursor:pointer; text-decoration:underline; }
+    body { margin:0; font-family: Arial; background:#36393f; color:white; display:flex; height:100vh; }
+    #sidebar { width:200px; background:#2f3136; display:flex; flex-direction:column; padding:10px; }
+    #sidebar h3 { margin:5px 0; font-size:16px; }
+    #roomSelect { flex:1; overflow-y:auto; background:#2f3136; color:white; border:none; border-radius:5px; }
+    #newRoom { margin-top:5px; padding:5px; border-radius:5px; border:none; }
+    #createRoomBtn { margin-top:5px; padding:5px; border-radius:5px; border:none; background:#7289da; color:white; cursor:pointer; }
+    #main { flex:1; display:flex; flex-direction:column; }
+    #messages { flex:1; padding:10px; overflow-y:auto; }
+    #inputContainer { display:flex; padding:10px; background:#2f3136; }
+    #input { flex:1; padding:10px; border-radius:5px; border:none; }
+    button { margin-left:5px; padding:10px; border-radius:5px; border:none; background:#7289da; color:white; cursor:pointer; }
+    .overlay { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .overlay input { padding:10px; margin-bottom:10px; border-radius:5px; border:none; width:200px; }
+    .overlay button { padding:10px 20px; border:none; border-radius:5px; background:#7289da; color:white; cursor:pointer; margin:2px; }
+    .clickable { color:#7289da; cursor:pointer; text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -42,10 +41,10 @@ button { margin-left:5px; padding:10px; border-radius:5px; border:none; backgrou
     <p>Уже есть аккаунт? <span class="clickable" onclick="showLogin()">Войти</span></p>
 </div>
 
-<!-- Список комнат -->
+<!-- Боковая панель с комнатами -->
 <div id="sidebar">
     <h3>Комнаты</h3>
-    <select id="roomSelect" size="10" onchange="openRoom(this.value)"></select>
+    <select id="roomSelect" size="10" onchange="changeRoom()"></select>
     <input id="newRoom" placeholder="Новая комната">
     <button id="createRoomBtn" onclick="createRoom()">Создать</button>
 </div>
@@ -60,13 +59,11 @@ button { margin-left:5px; padding:10px; border-radius:5px; border:none; backgrou
     </div>
 </div>
 
-<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+import { getDatabase, ref, set, get, push, onChildAdded } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
 
-// ==== Вставь сюда свою конфигурацию Firebase ====
+// Настройка Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCFyNVN3S757-mFBO1pxmwh3G4w4Hop_1g",
   authDomain: "optima-feee5.firebaseapp.com",
@@ -79,103 +76,113 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 const db = getDatabase(app);
 
-// Локальное имя пользователя и текущая комната
+// Переменные
 let username = "";
 let room = "";
 
-// Пользователи в localStorage
-function getUsers(){ return JSON.parse(localStorage.getItem("chat_users")||"{}"); }
-function saveUsers(users){ localStorage.setItem("chat_users",JSON.stringify(users)); }
-
-// Показываем регистрационное окно
+// UI функции
 function showRegister(){ document.getElementById("loginOverlay").style.display="none"; document.getElementById("registerOverlay").style.display="flex"; }
-// Показываем логин
 function showLogin(){ document.getElementById("registerOverlay").style.display="none"; document.getElementById("loginOverlay").style.display="flex"; }
 
 // Регистрация
-function register(){
-    const name=document.getElementById("registerUsername").value.trim();
-    const pass=document.getElementById("registerPassword").value.trim();
+window.register = async function(){
+    const name = document.getElementById("registerUsername").value.trim();
+    const pass = document.getElementById("registerPassword").value.trim();
     if(!name||!pass) return alert("Введите ник и пароль!");
-    let users=getUsers();
-    if(users[name]) return alert("Ник уже занят!");
-    users[name]=pass;
-    saveUsers(users);
+    const userRef = ref(db, "users/" + name);
+    const snapshot = await get(userRef);
+    if(snapshot.exists()) return alert("Ник занят!");
+    await set(userRef, {password: pass});
     alert("Регистрация успешна! Теперь войдите.");
     showLogin();
 }
 
 // Вход
-function login(){
-    const name=document.getElementById("loginUsername").value.trim();
-    const pass=document.getElementById("loginPassword").value.trim();
+window.login = async function(){
+    const name = document.getElementById("loginUsername").value.trim();
+    const pass = document.getElementById("loginPassword").value.trim();
     if(!name||!pass) return alert("Введите ник и пароль!");
-    let users=getUsers();
-    if(!users[name]||users[name]!==pass) return alert("Неверный ник или пароль!");
-    username=name;
+    const userRef = ref(db, "users/" + name);
+    const snapshot = await get(userRef);
+    if(!snapshot.exists() || snapshot.val().password !== pass) return alert("Неверный ник или пароль!");
+    username = name;
     document.getElementById("loginOverlay").style.display="none";
     document.getElementById("registerOverlay").style.display="none";
+    alert(`Привет, ${username}!`);
+    loadRooms();
 }
 
 // Добавление сообщений
 function addMessage(msg){
-    const messages=document.getElementById("messages");
-    const div=document.createElement("div");
-    div.textContent=msg;
+    const messages = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.textContent = msg;
     messages.appendChild(div);
-    messages.scrollTop=messages.scrollHeight;
+    messages.scrollTop = messages.scrollHeight;
 }
 
 // Создание комнаты
-function createRoom(){
+window.createRoom = async function(){
     if(!username) return alert("Сначала войдите!");
-    const newRoom=document.getElementById("newRoom").value.trim();
+    const newRoom = document.getElementById("newRoom").value.trim();
     if(!newRoom) return;
-
-    // Добавляем в Firebase
-    push(ref(db,'rooms'), {name:newRoom});
+    const roomRef = ref(db, "rooms/" + newRoom);
+    const snapshot = await get(roomRef);
+    if(snapshot.exists()) return alert("Комната уже существует!");
+    await set(roomRef, {name:newRoom});
     document.getElementById("newRoom").value="";
+    loadRooms();
+    openRoom(newRoom);
 }
 
-// Получение списка комнат
-const roomsRef = ref(db,'rooms');
-onChildAdded(roomsRef,(snapshot)=>{
-    const r = snapshot.val().name;
+// Загрузка комнат
+async function loadRooms(){
+    const roomsRef = ref(db, "rooms");
+    const snapshot = await get(roomsRef);
     const select = document.getElementById("roomSelect");
-    for(let i=0;i<select.options.length;i++){ if(select.options[i].value===r) return; }
-    const option = document.createElement("option");
-    option.value = r;
-    option.textContent = "#" + r;
-    select.appendChild(option);
-});
+    select.innerHTML = "";
+    if(snapshot.exists()){
+        Object.keys(snapshot.val()).forEach(r=>{
+            const option = document.createElement("option");
+            option.value = r;
+            option.textContent = "#" + r;
+            select.appendChild(option);
+        });
+    }
+}
 
 // Открытие комнаты
-function openRoom(selectedRoom){
-    room = selectedRoom;
-    document.getElementById("messages").innerHTML="";
-    document.getElementById("roomName").textContent="Комната: #" + room;
-
-    const messagesRef = ref(db, `messages/${room}`);
-    onChildAdded(messagesRef, snapshot => {
-        const msg = snapshot.val();
-        addMessage(`${msg.user}: ${msg.text}`);
+window.openRoom = function(r){
+    room = r;
+    document.getElementById("messages").innerHTML = "";
+    document.getElementById("roomName").textContent = "Комната: #" + room;
+    const messagesRef = ref(db, "messages/" + room);
+    onChildAdded(messagesRef, (data)=>{
+        addMessage(`${data.val().user}: ${data.val().text}`);
     });
 }
 
-// Отправка сообщений
-function sendMessage(){
-    const input=document.getElementById("input");
-    if(!room) return alert("Сначала выберите комнату!");
-    if(!input.value.trim()) return;
-
-    push(ref(db, `messages/${room}`), {user:username,text:input.value});
-    input.value="";
+// Смена комнаты
+window.changeRoom = function(){
+    const selectedRoom = document.getElementById("roomSelect").value;
+    if(selectedRoom) openRoom(selectedRoom);
 }
 
-document.getElementById("input").addEventListener("keypress",(e)=>{ if(e.key==="Enter") sendMessage(); });
+// Отправка сообщений
+window.sendMessage = async function(){
+    if(!room) return alert("Сначала выберите комнату!");
+    const input = document.getElementById("input");
+    if(!input.value.trim()) return;
+    const messagesRef = ref(db, "messages/" + room);
+    await push(messagesRef, {user:username, text:input.value});
+    input.value = "";
+}
+
+document.getElementById("input").addEventListener("keypress", (e)=>{
+    if(e.key==="Enter") sendMessage();
+});
 </script>
 
 </body>
